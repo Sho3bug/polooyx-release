@@ -1,0 +1,38 @@
+POLOOYX - RELEASE ENGINE v1.0  (Windows x64, VST3)
+===================================================
+
+INSTALL
+1. Unzip this folder anywhere (don't run from inside the zip).
+2. Double-click "Install POLOOYX RELEASE ENGINE.bat" and allow the admin prompt.
+   (Manual alternative: copy the "POLOOYX RELEASE ENGINE.vst3" folder into
+    C:\Program Files\Common Files\VST3\ )
+3. FL Studio -> Options -> Manage plugins -> "Find installed plugins".
+   It appears under Effects, vendor "Polooyx".
+4. Put it LAST on the MASTER mixer track (remove/bypass other limiters after it).
+
+FIRST USE
+1. Press ANALYZE POLO, then press play in FL Studio. Let it hear the whole song
+   (or at least its loudest part), then press STOP & ANALYZE.
+2. Read POLO DIAGNOSIS and NEXT STEPS.
+3. Pick a LOUDNESS TARGET (STREAMING = -14 LUFS) and a POLO IT MODE, press POLO IT.
+   It re-uses what it heard, applies the smallest corrections, renders your mix
+   through the real chain to verify, and shows BEFORE / AFTER and CHANGES.
+4. Compare with A / B COMPARE: ORIGINAL is level-matched, so you hear the
+   difference in sound, not in volume.
+5. Press FINAL CHECK before exporting.
+Everything POLO IT does is a normal parameter move: UNDO reverts it in one step.
+
+BEFORE YOU EXPORT
+- MONITOR must be FULL (MONO / SMALL are listening checks and change the output).
+- A / B COMPARE must be on PROCESSED, BYPASS off.
+
+LATENCY
+- About 13.5 ms at 48 kHz (oversampling filters + 10 ms limiter lookahead).
+  FL Studio compensates automatically on playback and export.
+
+STANDALONE
+- "POLOOYX RELEASE ENGINE.exe" runs without a DAW (audio in -> out).
+
+WINDOWS SMARTSCREEN
+- The build is not code-signed, so Windows may warn about the .bat or .exe.
+  Click "More info" -> "Run anyway".
