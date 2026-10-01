@@ -1,0 +1,99 @@
+name: Build POLOOYX RELEASE ENGINE
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows VST3 (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Inter font resources (SIL OFL)
+        shell: pwsh
+        run: |
+          npm pack inter-ui@4.1.1 --silent
+          tar xzf inter-ui-4.1.1.tgz
+          python -m pip install --quiet fonttools brotli
+          python tools/make_fonts.py package/web Resources
+
+      - name: Configure
+        # no -G: CMake picks the newest Visual Studio installed on the runner
+        run: cmake -B build -A x64 -DPRL_BUILD_TESTS=ON
+
+      - name: Build VST3 + Standalone + tests
+        run: cmake --build build --config Release --parallel --target PolooyxRelease_VST3 PolooyxRelease_Standalone PolooyxReleaseTests
+
+      - name: Run DSP test suite (Windows build)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path testrun | Out-Null
+          Push-Location testrun
+          & ..\build\PolooyxReleaseTests_artefacts\Release\PolooyxReleaseTests.exe
+          $code = $LASTEXITCODE
+          Pop-Location
+          "exit code: $code"
+          if (Test-Path testrun\test-output\TEST_REPORT.md) { Get-Content testrun\test-output\TEST_REPORT.md | Select-Object -Last 5 }
+          if ($code -ne 0) { throw "DSP tests failed" }
+
+      - name: Validate VST3 with pluginval (strictness 10)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval -Force
+          $vst = "build\PolooyxRelease_artefacts\Release\VST3\POLOOYX RELEASE ENGINE.vst3"
+          $p = Start-Process -FilePath .\pluginval\pluginval.exe -ArgumentList "--strictness-level 10 --validate-in-process --timeout-ms 900000 --output-dir pluginval-logs `"$vst`"" -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { Get-ChildItem pluginval-logs | Get-Content; throw "pluginval failed" }
+          "pluginval: PASS (strictness 10)" | Out-File pluginval-result.txt -Encoding utf8
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "dist\POLOOYX-RELEASE-ENGINE-Windows-x64"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item -Recurse "build\PolooyxRelease_artefacts\Release\VST3\POLOOYX RELEASE ENGINE.vst3" "$out\POLOOYX RELEASE ENGINE.vst3"
+          Copy-Item "build\PolooyxRelease_artefacts\Release\Standalone\POLOOYX RELEASE ENGINE.exe" "$out\POLOOYX RELEASE ENGINE.exe"
+          Copy-Item "packaging\Install POLOOYX RELEASE ENGINE.bat" $out
+          Copy-Item packaging\INSTALL.txt $out
+          Copy-Item testrun\test-output\TEST_REPORT.md "$out\TEST_REPORT.md"
+          Copy-Item pluginval-result.txt $out
+          if (Test-Path Resources\Inter-LICENSE.txt) { Copy-Item Resources\Inter-LICENSE.txt "$out\Inter-LICENSE.txt" }
+          Compress-Archive -Path "$out\*" -DestinationPath dist\POLOOYX-RELEASE-ENGINE-Windows-x64.zip -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: POLOOYX-RELEASE-ENGINE-Windows-x64
+          path: dist/POLOOYX-RELEASE-ENGINE-Windows-x64.zip
+
+      - name: Publish latest build to the 'builds' branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $sha = "${{ github.sha }}".Substring(0,7)
+          New-Item -ItemType Directory -Force -Path publish | Out-Null
+          Copy-Item dist\POLOOYX-RELEASE-ENGINE-Windows-x64.zip publish\
+          Copy-Item testrun\test-output\TEST_REPORT.md publish\TEST_REPORT-Windows.md
+          & build\PolooyxReleaseTests_artefacts\Release\PolooyxReleaseTests.exe --list-params publish\PARAMETERS.md
+          Set-Location publish
+          git init -q -b builds
+          git config user.name "polooyx-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Windows build $sha"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" builds
+
+      - name: Attach to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/POLOOYX-RELEASE-ENGINE-Windows-x64.zip
