@@ -101,4 +101,8 @@ if(PRL_BUILD_TESTS)
     if(PRL_HAS_INTER)
         target_link_libraries(PolooyxReleaseTests PRIVATE PrlFonts)
     endif()
+    if(MSVC)
+        # the harness keeps many processor instances on main()'s stack; Windows defaults to 1 MB
+        target_link_options(PolooyxReleaseTests PRIVATE /STACK:33554432)
+    endif()
 endif()
